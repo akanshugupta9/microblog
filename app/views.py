@@ -9,9 +9,10 @@ from flask_login import login_required
 from flask_login import login_user
 from flask_login import logout_user
 from werkzeug.utils import redirect
+from datetime import datetime
 
 from app import app, lm, oid, db
-from app.forms import LoginForm
+from app.forms import LoginForm, EditForm
 from app.models import User
 
 
@@ -65,6 +66,23 @@ def user(nickname):
                            user=user,
                            posts=posts)
 
+@app.route('/edit', methods=['GET', 'POST'])
+@login_required
+def edit():
+    form = EditForm()
+    if form.validate_on_submit():
+        g.user.nickname = form.nickname.data
+        g.user.about_me = form.about_me.data
+        db.session.add(g.user)
+        db.session.commit()
+        flash('Your changes have been saved...')
+        return redirect(url_for('edit'))
+    else:
+        form.nickname.data = g.user.nickname
+        form.about_me.data = g.user.about_me
+    return render_template('edit.html',
+                           form=form)
+
 @lm.user_loader
 def load_user(id):
     return User.query.get(int(id))
@@ -92,3 +110,7 @@ def after_login(resp):
 @app.before_request
 def before_request():
     g.user = current_user
+    if g.user.is_authenticated:
+        g.user.last_seen = datetime.utcnow()
+        db.session.add(g.user)
+        db.session.commit()
